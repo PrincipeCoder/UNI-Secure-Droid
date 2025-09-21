@@ -1,0 +1,44 @@
+
+flowchart LR
+    subgraph API[API Layer]
+        U[Usuario] --> UP[UploadService]
+        UP -->|enqueue| Q1[static_jobs Queue]
+    end
+
+    subgraph StaticWorkers[Workers Estáticos<br/>3 concurrentes CONSTANTE]
+        W1[Static Worker 1]
+        W2[Static Worker 2]
+        W3[Static Worker 3]
+    end
+
+    subgraph DynamicWorkers[Workers Dinámicos<br/>Auto-escala]
+        W4[Dynamic Worker 1]
+        W5[Dynamic Worker 2]
+    end
+
+    subgraph Colas[Pool: Colas]
+        Q1[Static Jobs Queue]
+        Q2[Dynamic Jobs Queue]
+    end
+
+    subgraph DB[Pool: MetadataDB]
+        MDB[(MetadataDB)]
+    end
+
+    %% Flujo estático (SIEMPRE 3 concurrentes)
+    Q1 --> W1
+    Q1 --> W2
+    Q1 --> W3
+    W1 --> MDB
+    W2 --> MDB
+    W3 --> MDB
+
+    %% Flujo híbrido (SOLO cuando confianza baja)
+    MDB -->|low confidence<br/>confidence < 0.8| Q2
+    Q2 --> W4
+    Q2 --> W5
+    W4 --> MDB
+    W5 --> MDB
+
+    MDB --> RS[ReportService]
+    RS --> U

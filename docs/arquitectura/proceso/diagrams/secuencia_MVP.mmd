@@ -1,0 +1,25 @@
+# Secuencia A (MVP)
+
+sequenceDiagram
+    participant U as Usuario
+    participant API as UploadService
+    participant OS as ObjectStore
+    participant MQ as JobQueue
+    participant SA as StaticAnalyzer
+    participant FB as FeatureBuilder
+    participant MS as ModelService
+    participant MDB as MetadataDB
+    participant RS as ReportService
+
+    U->>API: Sube APK
+    API->>OS: Guardar archivo
+    API->>MDB: Registrar job_id y estado 'queued'
+    API->>MQ: Encolar análisis estático
+
+    MQ->>SA: Ejecutar análisis estático
+    SA->>FB: static_features
+    FB->>MS: vector
+
+    MS->>MDB: Guardar veredicto
+    MS->>RS: Generar reporte
+    RS->>U: Descargar reporte
