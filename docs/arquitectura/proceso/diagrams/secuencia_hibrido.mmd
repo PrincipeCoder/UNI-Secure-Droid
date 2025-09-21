@@ -1,5 +1,3 @@
-# Secuencia B (Hibrido)
-
 sequenceDiagram
     participant U as Usuario
     participant API as UploadService
@@ -21,7 +19,7 @@ sequenceDiagram
     SA->>FB: static_features
     FB->>MS: vector
 
-    MS-->>MS: Evaluar confianza
+    MS->>MS: Evaluar confianza
     alt Confianza baja
         MS->>DR: Solicitar ejecución dinámica
         DR->>FB: dynamic_features
