@@ -1,16 +1,12 @@
 @startuml
 
-!define RECTANGLE class
-
-
-
 actor "Usuario" as User
 
 
 
-node "Frontend (Cliente Web)" {
+node "Cliente Web (Frontend)" {
 
-&nbsp;   \[Browser] as Browser
+&nbsp; \[Navegador] as Browser
 
 }
 
@@ -18,7 +14,7 @@ node "Frontend (Cliente Web)" {
 
 node "API Layer (FastAPI)" {
 
-&nbsp;   \[API Layer] as API
+&nbsp; \[API Layer] as API
 
 }
 
@@ -26,55 +22,25 @@ node "API Layer (FastAPI)" {
 
 node "Backend (Workers y Servicios)" {
 
-&nbsp;   node "Workers Estáticos" {
+&nbsp; \[UploadService] as UploadService
 
-&nbsp;       \[StaticWorker1] as StaticWorker1
+&nbsp; \[JobQueue (RabbitMQ)] as JobQueue
 
-&nbsp;       \[StaticWorker2] as StaticWorker2
+&nbsp; \[StaticWorker 1] as StaticWorker1
 
-&nbsp;       \[StaticWorker3] as StaticWorker3
+&nbsp; \[StaticWorker 2] as StaticWorker2
 
-&nbsp;   }
+&nbsp; \[DynamicWorker 1] as DynamicWorker1
 
+&nbsp; \[DynamicWorker 2] as DynamicWorker2
 
+&nbsp; \[ModelService] as ModelService
 
-&nbsp;   node "Workers Dinámicos" {
+&nbsp; \[ReportService] as ReportService
 
-&nbsp;       \[DynamicWorker1] as DynamicWorker1
+&nbsp; \[ObjectStore (S3/MinIO)] as ObjectStore
 
-&nbsp;       \[DynamicWorker2] as DynamicWorker2
-
-&nbsp;   }
-
-
-
-&nbsp;   node "Almacenamiento" {
-
-&nbsp;       \[ObjectStore (S3/MinIO)] as ObjectStore
-
-&nbsp;       \[MetadataDB] as MetadataDB
-
-&nbsp;   }
-
-
-
-&nbsp;   node "Servicios" {
-
-&nbsp;       \[UploadService] as UploadService
-
-&nbsp;       \[JobQueue (RabbitMQ/Redis)] as JobQueue
-
-&nbsp;       \[StaticAnalyzer] as StaticAnalyzer
-
-&nbsp;       \[FeatureBuilder] as FeatureBuilder
-
-&nbsp;       \[ModelService] as ModelService
-
-&nbsp;       \[DynamicRunner] as DynamicRunner
-
-&nbsp;       \[ReportService] as ReportService
-
-&nbsp;   }
+&nbsp; \[MetadataDB] as MetadataDB
 
 }
 
@@ -88,37 +54,35 @@ API --> UploadService : Sube APK
 
 UploadService --> JobQueue : Encola trabajo
 
-JobQueue --> StaticWorker1 : Asigna trabajo estático
+JobQueue --> StaticWorker1 : Asigna trabajo
 
-JobQueue --> StaticWorker2 : Asigna trabajo estático
-
-JobQueue --> StaticWorker3 : Asigna trabajo estático
+JobQueue --> StaticWorker2 : Asigna trabajo
 
 
 
-StaticWorker1 --> StaticAnalyzer : Ejecuta análisis estático
+StaticWorker1 --> ModelService : Ejecuta análisis estático
 
-StaticWorker2 --> StaticAnalyzer : Ejecuta análisis estático
-
-StaticWorker3 --> StaticAnalyzer : Ejecuta análisis estático
-
-StaticAnalyzer --> FeatureBuilder : Extrae características
-
-FeatureBuilder --> ModelService : Clasificación
-
-ModelService --> MetadataDB : Almacena metadatos
+StaticWorker2 --> ModelService : Ejecuta análisis estático
 
 
 
-API --> JobQueue : Encola trabajos de análisis
+API --> JobQueue : Encola trabajo de análisis dinámico
 
-DynamicWorker1 --> DynamicRunner : Ejecuta análisis dinámico
+JobQueue --> DynamicWorker1 : Asigna trabajo dinámico
 
-DynamicWorker2 --> DynamicRunner : Ejecuta análisis dinámico
+JobQueue --> DynamicWorker2 : Asigna trabajo dinámico
 
-DynamicRunner --> MetadataDB : Almacena resultados dinámicos
 
-DynamicRunner --> ObjectStore : Almacena artefactos
+
+DynamicWorker1 --> ModelService : Ejecuta análisis dinámico
+
+DynamicWorker2 --> ModelService : Ejecuta análisis dinámico
+
+
+
+ModelService --> ObjectStore : Almacena artefactos
+
+ModelService --> MetadataDB : Almacena resultados
 
 
 
