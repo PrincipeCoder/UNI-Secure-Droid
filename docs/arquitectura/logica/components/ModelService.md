@@ -21,5 +21,5 @@ Si la confianza es baja, solicita ejecución dinámica al **DynamicRunner**.
 | Tiempo de inferencia >5 s | marca job como `error` |
 
 ## RF / RNF soportados
-- RF-15, RF-16  
-- RNF-8, RNF-13, RNF-14
+- RF-4.3, RF-4.4, RF-4.5, RF-4.6
+- RNF-4.1, RNF-4.2, RNF-4.4, RNF-4.5, RNF-4.8

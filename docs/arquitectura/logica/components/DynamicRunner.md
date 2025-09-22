@@ -22,5 +22,5 @@ Devuelve un conjunto de `dynamic_features` para combinarlos con los datos estát
 | Timeout >90 s                                  | Cancelar ejecución y notificar a ModelService. |
  
 ## RF / RNF soportados
-- RF-08, RF-09, RF-10, RF-11, RF-12
-- RNF-3, RNF-2 
+- RF-3.1, RF-3.2, RF-3.3, RF-3.4, RF-3.5, RF-3.6
+- RNF-1.2, RNF-2.1, RNF-2.2, RNF-2.3, RNF-2.4

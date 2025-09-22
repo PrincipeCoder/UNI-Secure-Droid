@@ -22,5 +22,5 @@ Entrega un JSON de características al **FeatureBuilder**.
 | Timeout >15 s           | aborta análisis estático |
 
 ## RF / RNF soportados
-- RF-02, RF-03, RF-04, RF-05, RF-06, RF-07
-- RNF-1, RNF-2 
+- RF-2.1, RF-2.2, RF-2.3, RF-2.4, RF-2.5, RF-2.6, RF-2.7 
+- RNF-1.1, RNF-4.3, RNF-4.7

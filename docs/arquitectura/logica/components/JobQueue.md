@@ -21,5 +21,5 @@ Permite reintentos con backoff y notifica estados al MetadataDB.
 | Timeout en lectura  | Registrar métrica y continuar                  |
  
 ## RF / RNF soportados
-- RF-21 
-- RNF-10 
+- RF-7.1
+- RNF-4.1, RNF-4.9

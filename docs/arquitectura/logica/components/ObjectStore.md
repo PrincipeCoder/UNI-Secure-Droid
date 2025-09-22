@@ -20,5 +20,5 @@ Garantiza disponibilidad, cifrado en reposo y control de versiones básicos.
 | Latencia alta en lectura                 | Reintento automático (máx 2) |
  
 ## RF / RNF soportados
-- RF-22 
-- RNF-5
+- RF-8.1  
+- RNF-3.2, RNF-2.4, RNF-4.10 

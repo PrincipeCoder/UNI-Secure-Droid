@@ -22,4 +22,5 @@ Entrega un vector listo para el modelo de IA.
 | Tiempo de procesamiento >3 s                         | Registrar alerta y devolver mensaje de error.                          |
 
 ## RF / RNF soportados
-- RF-13, RF-14
+- RF-4.1, RF-4.2
+- RNF-4.2, RNF-4.3 

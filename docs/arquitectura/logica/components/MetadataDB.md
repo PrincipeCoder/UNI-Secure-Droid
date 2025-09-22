@@ -20,5 +20,5 @@ Registra estados (`queued`, `static`, `dynamic`, `done`, `error`), logs, hashes,
 | Latencia >100 ms p95       | Registrar métrica                    |
  
 ## RF / RNF soportados
-- RF-23 
-- RNF-11
+- RF-8.2 
+- RNF-4.8, RNF-4.10, RNF-4.2  

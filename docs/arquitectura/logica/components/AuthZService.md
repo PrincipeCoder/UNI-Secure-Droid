@@ -20,5 +20,5 @@ Controla roles (`user`, `analyst`, `admin`) y scopes para acceder a reportes o l
 | Error interno                      | 500 Internal Server Error |
  
 ## RF / RNF soportados
-- RF-20 
-- RNF-3, RNF-4
+- RF-6.1  
+- RNF-3.3, RNF-3.4, RNF-3.6

@@ -22,5 +22,5 @@ Finalmente, encola la tarea en **JobQueue** para el análisis estático.
 | Timeout de hash (>5 s)             | marca job en error |
 
 ## RF / RNF soportados
-- RF-01 
-- RNF-1, RNF-2 
+- RF-1.1, RF-1.2, RF-1.3, RF-1.4, RF-1.5, RF-1.6   
+- RNF-1.1, RNF-3.1, RNF-4.7

@@ -21,5 +21,5 @@ Permite descargar el reporte o verlo en el navegador.
 | Fallo interno al crear plantilla                                | 500                                                                                  |
 
 ## RF / RNF soportados
-- RF-17, RF-18, RF-19  
-- RNF-6, RNF-7
+- RF-5.1, RF-5.2, RF-5.3, RF-5.4, RF-5.5  
+- RNF-4.6, RNF-3.5, RNF-3.6  
