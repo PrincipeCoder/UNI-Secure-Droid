@@ -1,0 +1,145 @@
+openapi: "3.0.3"
+info:
+  title: UNI Secure Droid API
+  version: "1.0.0"
+  description: >
+    API v1 mínima para subir aplicaciones, consultar estado de análisis 
+    y obtener reportes. Definida en la Vista 3 - Desarrollo.
+servers:
+  - url: https://api.example.com/api/v1
+    description: Servidor de producción (ejemplo)
+  - url: http://localhost:8000/api/v1
+    description: Servidor local de desarrollo
+paths:
+  /uploads:
+    post:
+      summary: Subir archivo APK y crear un nuevo análisis
+      description: Sube un archivo APK para análisis de seguridad y malware
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Archivo APK a analizar
+      responses:
+        "201":
+          description: Análisis creado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    description: Identificador único del trabajo de análisis
+                    example: "job_12345"
+        "400":
+          description: Archivo inválido o formato no soportado
+        "413":
+          description: Archivo demasiado grande
+
+  /status/{job_id}:
+    get:
+      summary: Consultar el estado de un análisis
+      description: Obtiene el estado actual y progreso del análisis
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          description: Identificador del trabajo de análisis
+          schema:
+            type: string
+            example: "job_12345"
+      responses:
+        "200":
+          description: Estado del análisis obtenido exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    description: Estado actual del análisis
+                    enum: ["queued", "running", "completed", "failed"]
+                    example: "running"
+                  phase:
+                    type: string
+                    description: Fase actual del análisis
+                    enum: ["static_analysis", "dynamic_analysis", "report_generation"]
+                    example: "static_analysis"
+                  eta:
+                    type: integer
+                    description: Tiempo estimado de finalización en segundos
+                    example: 120
+        "404":
+          description: Trabajo no encontrado
+
+  /report/{job_id}:
+    get:
+      summary: Obtener el reporte de un análisis
+      description: >
+        Descarga el reporte completo del análisis de seguridad en formato JSON o PDF.
+        El reporte incluye el veredicto final, nivel de riesgo y principales indicadores
+        de amenaza detectados durante el análisis estático y dinámico.
+      operationId: getAnalysisReport
+      tags:
+        - Reports
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          description: Identificador del trabajo de análisis
+          schema:
+            type: string
+            example: "job_12345"
+        - name: format
+          in: query
+          required: false
+          description: Formato del reporte a descargar
+          schema:
+            type: string
+            enum: ["json", "pdf"]
+            default: json
+      responses:
+        "200":
+          description: Reporte generado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  verdict:
+                    type: string
+                    description: Veredicto final del análisis
+                    enum: ["clean", "suspicious", "malicious"]
+                    example: "malicious"
+                  risk:
+                    type: string
+                    description: Nivel de riesgo detectado
+                    enum: ["low", "medium", "high", "critical"]
+                    example: "high"
+                  top_signals:
+                    type: array
+                    description: Principales indicadores de amenaza detectados
+                    items:
+                      type: string
+                    example:
+                      - "Suspicious permission: SEND_SMS"
+                      - "Obfuscation detected"
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+                description: Reporte en formato PDF
+        "404":
+          description: Trabajo no encontrado o reporte no disponible
+        "202":
+          description: Análisis aún en progreso, reporte no disponible
