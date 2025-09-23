@@ -1,38 +1,39 @@
-```mermaid
-flowchart TD
-    %% Actores
-    User["👤 Usuario"] --> Browser["🌐 Navegador (Cliente Web)"]
+sequenceDiagram
+    actor U as Usuario
+    participant B as Navegador
+    participant API as API Layer (FastAPI)
+    participant US as UploadService
+    participant MQ as JobQueue (RabbitMQ)
+    participant SW1 as StaticWorker 1
+    participant SW2 as StaticWorker 2
+    participant DW1 as DynamicWorker 1
+    participant DW2 as DynamicWorker 2
+    participant MS as ModelService
+    participant RS as ReportService
+    participant OS as ObjectStore (S3/MinIO)
+    participant MDB as MetadataDB
 
-    %% API Layer
-    Browser --> API["⚡ API Layer (FastAPI)"]
+    U->>B: Interactúa con la aplicación
+    B->>API: Solicita análisis y resultados
 
-    %% Upload Service y JobQueue
-    API --> UploadService["📦 UploadService"]
-    UploadService --> JobQueue["📬 JobQueue (RabbitMQ)"]
+    API->>US: Sube APK
+    US->>MQ: Encola trabajo
 
-    %% Static Workers
-    JobQueue --> StaticWorker1["🛠️ StaticWorker 1"]
-    JobQueue --> StaticWorker2["🛠️ StaticWorker 2"]
+    MQ->>SW1: Asigna trabajo
+    MQ->>SW2: Asigna trabajo
+    SW1->>MS: Ejecuta análisis estático
+    SW2->>MS: Ejecuta análisis estático
 
-    StaticWorker1 --> ModelService["🧩 ModelService"]
-    StaticWorker2 --> ModelService
+    API->>MQ: Encola trabajo de análisis dinámico
+    MQ->>DW1: Asigna trabajo dinámico
+    MQ->>DW2: Asigna trabajo dinámico
+    DW1->>MS: Ejecuta análisis dinámico
+    DW2->>MS: Ejecuta análisis dinámico
 
-    %% Dynamic Workers
-    API --> JobQueue
-    JobQueue --> DynamicWorker1["⚙️ DynamicWorker 1"]
-    JobQueue --> DynamicWorker2["⚙️ DynamicWorker 2"]
+    MS->>OS: Almacena artefactos
+    MS->>MDB: Almacena resultados
 
-    DynamicWorker1 --> ModelService
-    DynamicWorker2 --> ModelService
-
-    %% Model Service connections
-    ModelService --> ObjectStore["🗄️ ObjectStore (S3/MinIO)"]
-    ModelService --> MetadataDB["💾 MetadataDB"]
-
-    %% Report Service
-    ReportService["📑 ReportService"] --> ObjectStore
-    ReportService --> MetadataDB
-    ReportService --> API
-
-
+    RS->>OS: Recupera artefactos
+    RS->>MDB: Genera reporte
+    RS->>API: Retorna resultados
 
