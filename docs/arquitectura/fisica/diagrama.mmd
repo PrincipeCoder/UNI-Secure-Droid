@@ -1,0 +1,38 @@
+```mermaid
+flowchart TD
+    %% Actores
+    User["👤 Usuario"] --> Browser["🌐 Navegador (Cliente Web)"]
+
+    %% API Layer
+    Browser --> API["⚡ API Layer (FastAPI)"]
+
+    %% Upload Service y JobQueue
+    API --> UploadService["📦 UploadService"]
+    UploadService --> JobQueue["📬 JobQueue (RabbitMQ)"]
+
+    %% Static Workers
+    JobQueue --> StaticWorker1["🛠️ StaticWorker 1"]
+    JobQueue --> StaticWorker2["🛠️ StaticWorker 2"]
+
+    StaticWorker1 --> ModelService["🧩 ModelService"]
+    StaticWorker2 --> ModelService
+
+    %% Dynamic Workers
+    API --> JobQueue
+    JobQueue --> DynamicWorker1["⚙️ DynamicWorker 1"]
+    JobQueue --> DynamicWorker2["⚙️ DynamicWorker 2"]
+
+    DynamicWorker1 --> ModelService
+    DynamicWorker2 --> ModelService
+
+    %% Model Service connections
+    ModelService --> ObjectStore["🗄️ ObjectStore (S3/MinIO)"]
+    ModelService --> MetadataDB["💾 MetadataDB"]
+
+    %% Report Service
+    ReportService["📑 ReportService"] --> ObjectStore
+    ReportService --> MetadataDB
+    ReportService --> API
+
+
+
