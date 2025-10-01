@@ -31,4 +31,37 @@ class APKManager:
         Returns:
             bool: True si la subida fue exitosa, False en caso contrario.
         """
-        pass
+        try:
+            # Abre el archivo en modo de lectura binaria ('rb').
+            # Es importante usar 'rb' para archivos no textuales como los APK.
+            with open(file_path, 'rb') as f:
+                # Prepara el archivo para ser enviado en la petición POST.
+                # 'file' es el nombre del campo que el servidor esperará.
+                files = {'file': (file_path, f, 'application/vnd.android.package-archive')}
+
+                # Realiza la petición POST al servidor con el archivo.
+                # Se incluye un timeout para evitar que la aplicación se quede
+                # colgada indefinidamente en caso de problemas de red.
+                response = requests.post(server_url, files=files, timeout=60)
+
+                # Comprueba si la petición fue exitosa (código de estado 2xx).
+                response.raise_for_status()
+
+                # Imprime la respuesta del servidor para depuración.
+                print(f"Respuesta del servidor: {response.json()}")
+
+                # Devuelve True si la subida fue exitosa.
+                return True
+
+        except FileNotFoundError:
+            # Maneja el caso en que el archivo no se encuentra en la ruta especificada.
+            print(f"Error: El archivo no fue encontrado en '{file_path}'")
+            return False
+        except requests.exceptions.RequestException as e:
+            # Maneja errores de red (e.g., sin conexión, DNS no resuelve).
+            print(f"Error de conexión: {e}")
+            return False
+        except Exception as e:
+            # Captura cualquier otro error inesperado.
+            print(f"Ocurrió un error inesperado: {e}")
+            return False
