@@ -1,0 +1,125 @@
+================================================
+Guía de Usuario: Prueba del Static Analyzer en Linux
+================================================
+
+Este documento proporciona las instrucciones para configurar y probar el proyecto Static Analyzer en un entorno Linux.
+
+----------------
+1. Prerrequisitos
+----------------
+
+Antes de comenzar, asegúrate de tener lo siguiente instalado en tu sistema:
+
+- **Python 3.8+** y **pip**:
+  ```bash
+  sudo apt-get update
+  sudo apt-get install python3 python3-pip python3-venv
+  ```
+
+- **Git**:
+  ```bash
+  sudo apt-get install git
+  ```
+
+- **Redis Server**: Celery lo utiliza como message broker para gestionar las tareas.
+  ```bash
+  sudo apt-get install redis-server
+  # Inicia y habilita el servicio de Redis
+  sudo systemctl start redis-server
+  sudo systemctl enable redis-server
+  ```
+
+-----------------------------
+2. Configuración del Proyecto
+-----------------------------
+
+1.  **Clona el repositorio** (si aún no lo has hecho):
+    ```bash
+    # git clone <url_del_repositorio>
+    # cd <nombre_del_repositorio>
+    ```
+
+2.  **Crea y activa un entorno virtual**:
+    Esto aísla las dependencias del proyecto de tu sistema.
+    ```bash
+    python3 -m venv venv
+    source venv/bin/activate
+    ```
+    Verás `(venv)` al principio de la línea de comandos, lo que indica que el entorno está activo.
+
+3.  **Instala las dependencias**:
+    Instala todas las librerías de Python necesarias para el proyecto.
+    ```bash
+    pip install -r StaticAnalyzer/requirements.txt
+    ```
+
+----------------------
+3. Ejecución de la Aplicación
+----------------------
+
+Para probar la aplicación completa, necesitas ejecutar dos componentes principales: el **servidor web (FastAPI)** y el **trabajador (Celery)**.
+
+1.  **Inicia el trabajador de Celery**:
+    Abre una nueva terminal, navega a la raíz del proyecto, activa el entorno virtual y ejecuta:
+    ```bash
+    source venv/bin/activate
+    cd StaticAnalyzer
+    celery -A analyzer worker --loglevel=info
+    ```
+    Este trabajador se quedará esperando para procesar tareas de análisis de APK.
+
+2.  **Inicia el servidor web de FastAPI**:
+    Abre una **segunda terminal**, navega a la raíz del proyecto, activa el entorno virtual y ejecuta:
+    ```bash
+    source venv/bin/activate
+    cd StaticAnalyzer
+    uvicorn main:app --reload
+    ```
+    El servidor web estará disponible en `http://127.0.0.1:8000`.
+
+----------------------
+4. Ejecución de Pruebas
+----------------------
+
+### Pruebas Automatizadas (Pytest)
+
+El proyecto incluye una suite de pruebas automatizadas para verificar que todos los componentes funcionen correctamente sin necesidad de ejecutar la aplicación completa.
+
+Para ejecutar las pruebas:
+
+1.  Asegúrate de que tu entorno virtual esté activado.
+2.  Desde el **directorio raíz del proyecto**, ejecuta el siguiente comando:
+    ```bash
+    PYTHONPATH=StaticAnalyzer python3 -m pytest StaticAnalyzer/tests/
+    ```
+    Este comando se asegura de que los módulos del proyecto (`analyzer`, `main`, etc.) se puedan encontrar y ejecuta todas las pruebas en el directorio `StaticAnalyzer/tests/`. Deberías ver que todas las pruebas pasan.
+
+### Pruebas Manuales (API)
+
+Con el servidor FastAPI y el trabajador Celery en ejecución, puedes probar la API manualmente.
+
+1.  **Sube un archivo APK para análisis**:
+    Usa una herramienta como `curl` para enviar un archivo `.apk`. Reemplaza `/path/to/your/app.apk` con la ruta a un APK real.
+    ```bash
+    curl -X POST -F "file=@/path/to/your/app.apk" http://127.0.0.1:8000/analyze
+    ```
+    La respuesta será un JSON con el `job_id`:
+    ```json
+    {"job_id":"xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx","message":"El trabajo de análisis ha sido aceptado."}
+    ```
+
+2.  **Consulta el estado del trabajo**:
+    Usa el `job_id` devuelto para consultar el estado del análisis.
+    ```bash
+    curl http://127.0.0.1:8000/status/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    ```
+    Inicialmente, el estado será `processing`. Después de unos segundos, si vuelves a consultar, debería cambiar a `completed` y mostrar los resultados del análisis.
+
+--------------------
+5. Desactivar el Entorno
+--------------------
+
+Cuando termines de trabajar, puedes desactivar el entorno virtual con el comando:
+```bash
+deactivate
+```
