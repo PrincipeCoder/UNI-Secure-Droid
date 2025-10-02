@@ -19,9 +19,8 @@ app = FastAPI(title="StaticAnalyzer Service", description="API para el análisis
 OBJECT_STORE_PATH = "/tmp/apk_storage/"
 os.makedirs(OBJECT_STORE_PATH, exist_ok=True) # Nos aseguramos que el directorio exista
 
-# 3. Simulación de una MetadataDB: usaremos un diccionario de Python.
-# En producción, esto sería una base de datos como PostgreSQL o MongoDB.
-JOBS_DB = {}
+# 3. Importamos nuestra base de datos simulada desde el módulo de estado compartido.
+from shared_state import JOBS_DB
 
 # --- Endpoints de la API ---
 
