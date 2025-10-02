@@ -1,0 +1,52 @@
+Metadata-Version: 2.0
+Name: androguard
+Version: 3.2.0
+Summary: Androguard is a full python tool to play with Android files.
+Home-page: https://github.com/androguard/androguard
+License: Apache Licence, Version 2.0
+Download-URL: https://github.com/androguard/androguard/releases
+Platform: UNKNOWN
+Provides-Extra: GUI
+Provides-Extra: docs
+Provides-Extra: graphing
+Provides-Extra: magic
+Provides-Extra: tests
+Requires-Dist: asn1crypto
+Requires-Dist: colorama
+Requires-Dist: future
+Requires-Dist: ipython (>=5.0.0)
+Requires-Dist: lxml
+Requires-Dist: matplotlib
+Requires-Dist: networkx (>=1.11)
+Requires-Dist: pygments
+Provides-Extra: GUI
+Requires-Dist: PyQt5; extra == 'GUI'
+Requires-Dist: pyperclip; extra == 'GUI'
+Provides-Extra: docs
+Requires-Dist: sphinx; extra == 'docs'
+Requires-Dist: sphinx-rtd-theme; extra == 'docs'
+Requires-Dist: sphinxcontrib-programoutput (>0.8); extra == 'docs'
+Provides-Extra: graphing
+Requires-Dist: pydot; extra == 'graphing'
+Provides-Extra: magic
+Requires-Dist: file-magic; extra == 'magic'
+Provides-Extra: tests
+Requires-Dist: codecov; extra == 'tests'
+Requires-Dist: coverage; extra == 'tests'
+Requires-Dist: mock (>=2.0); extra == 'tests'
+Requires-Dist: nose; extra == 'tests'
+Requires-Dist: nose-timer; extra == 'tests'
+
+Androguard is a tool and python library to interact with Android Files.
+
+Usually they come in the form of Android Packages (APK) or Dalvik Executeable (DEX) files.
+Androguard has tools to read Android's binary format for XML files (AXML) and is also suited with a decompiler for DEX.
+
+Androguard might not only be used as a tool for reverse engineering single applications, but features a lot of functions
+for automated analysis. It provides a pure python framework to build your own analysis tools.
+
+If you encounter bugs while using androguard, please feel free to report them in our bugtracker_.
+
+.. _bugtracker: https://github.com/androguard/androguard/issues
+
+

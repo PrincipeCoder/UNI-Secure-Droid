@@ -1,0 +1,8 @@
+# requirements.txt
+androguard==3.2.0
+celery==5.2.0
+redis==4.1.4
+#sqlite3 (si usas SQLite)
+flask == 2.1.1
+pytest==6.2.5
+
