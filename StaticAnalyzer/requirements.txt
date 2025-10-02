@@ -1,8 +1,10 @@
 # requirements.txt
 androguard==3.2.0
-celery==5.2.0
+celery==5.3.6
 redis==4.1.4
-#sqlite3 (si usas SQLite)
-flask == 2.1.1
+fastapi
+uvicorn[standard]
+python-multipart
 pytest==6.2.5
-
+pytest-mock
+httpx
