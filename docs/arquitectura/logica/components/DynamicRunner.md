@@ -1,4 +1,4 @@
-# UploadService
+# DynamicRunner
 
 ## Responsabilidad
 Ejecuta el APK dentro de un entorno aislado (sandbox Android x86) cuando el modelo no alcanza un nivel de confianza suficiente.  
