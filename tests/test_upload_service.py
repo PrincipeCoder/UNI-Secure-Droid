@@ -9,7 +9,6 @@ FAKE_APK_PATH = os.path.join(TEMP_DIR, "fake.apk")
 LARGE_APK_PATH = os.path.join(TEMP_DIR, "large.apk")
 FAKE_TXT_PATH = os.path.join(TEMP_DIR, "fake.txt")
 
-
 class TestUploadService(unittest.TestCase):
     def setUp(self):
         # 1. Configuración del servicio y variables
