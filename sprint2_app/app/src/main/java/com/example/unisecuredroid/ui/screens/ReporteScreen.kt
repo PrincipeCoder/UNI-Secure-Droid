@@ -56,7 +56,8 @@ fun ReporteScreen(
                     CircularProgressIndicator(color = themeColors.secondary)
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "Procesando análisis...",
+                        // Texto corregido tras la eliminación de workers
+                        text = "Realizando Análisis Estático...",
                         fontSize = 18.sp,
                         color = themeColors.onBackground.copy(alpha = 0.8f)
                     )
@@ -134,7 +135,8 @@ private fun ReportView(
 
         Text(text = "Reporte de Análisis", fontSize = 26.sp, color = themeColors.onBackground, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "Job ID: ${report.jobId}", fontSize = 14.sp, color = themeColors.onBackground.copy(alpha = 0.6f))
+        // El Job ID se mostrará ahora en la Card de detalles
+        // Text(text = "Job ID: ${report.jobId}", fontSize = 14.sp, color = themeColors.onBackground.copy(alpha = 0.6f))
         Spacer(modifier = Modifier.height(24.dp))
 
         Card(
@@ -182,16 +184,16 @@ private fun ReportView(
             }
         }
 
-        // VENTANA MODAL (Alert Dialog)
+        // VENTANA MODAL (Alert Dialog) para Justificación
         if (showScoreDetails) {
             AlertDialog(
                 onDismissRequest = { showScoreDetails = false },
                 title = { Text("Detalle Técnico del Veredicto", color = themeColors.onBackground) },
                 text = {
-
                     LazyColumn {
                         item {
                             Text(
+                                // Usa el campo verdictDetails para la justificación
                                 report.verdictDetails,
                                 color = themeColors.onBackground,
                                 fontSize = 14.sp
@@ -210,8 +212,32 @@ private fun ReportView(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Detalle de Permisos (Card)
+        // LazyColumn principal para Permisos y URLs
         LazyColumn(modifier = Modifier.weight(1f)) {
+
+            // --- NUEVO BLOQUE: DETALLES DEL ARCHIVO (HASH RF-3) ---
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = themeColors.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Detalles del Archivo", color = themeColors.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Muestra el Job ID y el Hash
+                        DetailRow(label = "Job ID:", value = report.jobId, themeColors = themeColors)
+                        DetailRow(label = "Hash SHA-256:", value = report.sha256, themeColors = themeColors)
+                    }
+                }
+            }
+            // ----------------------------------------------------
+
+            // --- PERMISOS DETECTADOS (Card) ---
             item {
                 Card(
                     modifier = Modifier
@@ -234,6 +260,7 @@ private fun ReportView(
                     }
                 }
             }
+            // ------------------------------------
 
             // Sección de URLs/IPs Clasificadas
             item {
@@ -305,6 +332,27 @@ private fun ReportView(
     }
 }
 
+// --- FUNCIÓN HELPER: Muestra detalles en dos columnas ---
+@Composable
+fun DetailRow(label: String, value: String, themeColors: ColorScheme) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = label, fontWeight = FontWeight.SemiBold, color = themeColors.onSurface.copy(alpha = 0.8f))
+
+        // Truncar el SHA-256 para una mejor visualización en pantalla
+        val displayValue = if (value.length > 20 && label.contains("SHA-256")) {
+            "${value.substring(0, 16)}..."
+        } else {
+            value
+        }
+        Text(text = displayValue, color = themeColors.onSurface, fontSize = 14.sp)
+    }
+}
+
+
 // Función generar PDF
 private fun generarPDF(context: Context, report: StaticReport): File? {
     return try {
@@ -312,6 +360,7 @@ private fun generarPDF(context: Context, report: StaticReport): File? {
             UNIVERSIDAD NACIONAL DE INGENIERÍA
             Proyecto: UNI-SecureDroid
             Job ID: ${report.jobId}
+            Hash SHA-256: ${report.sha256}  // <-- Hash añadido al PDF
             Fecha: ${Date()}
 
             REPORTE DE ANÁLISIS ESTÁTICO
