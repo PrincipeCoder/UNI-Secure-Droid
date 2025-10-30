@@ -33,6 +33,25 @@ object StaticAnalyzer {
         }
     }
 
+    // Función: Calcula el hash SHA-256
+
+    private fun calculateSha256(tempFile: File): String {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            tempFile.inputStream().use { input ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                while (input.read(buffer).also { bytesRead = it } != -1) {
+                    digest.update(buffer, 0, bytesRead)
+                }
+            }
+            digest.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            println("Error calculando SHA-256: ${e.message}")
+            "SHA-256_ERROR"
+        }
+    }
+
     // --- 1. FUNCIÓN: Extraer permisos ---
     private suspend fun extractPermissionsWithApkParser(context: Context, apkUri: Uri): List<String> = withContext(Dispatchers.IO) {
         val permissions = mutableListOf<String>()
@@ -193,16 +212,29 @@ object StaticAnalyzer {
     suspend fun performStaticAnalysis(context: Context, apkUri: Uri, jobId: String): StaticReport {
         println("---- Extrayendo datos REALES (Última versión estable) ----")
 
+        // 1. Calcular el Hash SHA-256 (RF-3)
+        // Se requiere copiar el archivo APK una vez más para el cálculo del hash.
+        val tempFileForHash = copyUriToTempFile(context, apkUri, "hash")
+        val sha256Hash = if (tempFileForHash != null) {
+            // Calcula el hash y luego borra el archivo temporal
+            calculateSha256(tempFileForHash).also { tempFileForHash.delete() }
+        } else {
+            "SHA-256_FAILED"
+        }
+
+        // 2. Extraer Permisos y URLs (Análisis)
         val realPermissions = extractPermissionsWithApkParser(context, apkUri)
         val realUrlsIps = extractUrlsAndIps(context, apkUri)
 
+        // 3. Calcular Veredicto y Justificación
         val (verdict, verdictDetails) = calculateVerdict(realPermissions, realUrlsIps)
 
         delay(200)
 
-        // Devolvemos el reporte con el Veredicto y sus detalles
+        // 4. Devolver el Reporte
         return StaticReport(
             jobId = jobId,
+            sha256 = sha256Hash,
             verdict = verdict,
             permissions = realPermissions,
             urls = realUrlsIps,
