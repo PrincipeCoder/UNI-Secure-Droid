@@ -3,18 +3,63 @@ package com.example.unisecuredroid.data
 import android.content.Context
 import android.net.Uri
 import com.example.unisecuredroid.data.models.StaticReport
-import net.dongliu.apk.parser.ApkFile
-import net.dongliu.apk.parser.bean.ApkMeta
+import com.example.unisecuredroid.data.TFLiteModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import net.dongliu.apk.parser.bean.ApkMeta
 import java.io.File
 import java.io.FileOutputStream
+import java.util.Locale
 import java.util.regex.Pattern
 import java.util.zip.ZipFile
-import kotlinx.coroutines.delay
-import kotlin.random.Random
+
 
 object StaticAnalyzer {
+
+    // Mapa de Características para el modelo TFLite (Debe coincidir con el entrenamiento)
+    private val FEATURE_MAP = mapOf(
+        // Permisos (solo una selección, el modelo real podría tener más)
+        "Permission::android.permission.INTERNET" to 0,
+        "Permission::android.permission.READ_SMS" to 1,
+        "Permission::android.permission.SEND_SMS" to 2,
+        "Permission::android.permission.ACCESS_FINE_LOCATION" to 3,
+        "Permission::android.permission.WRITE_EXTERNAL_STORAGE" to 4,
+        "Permission::android.permission.CAMERA" to 5,
+        "Permission::android.permission.RECORD_AUDIO" to 6,
+        // APIs/Intents (selección)
+        "APIcall::java.lang.reflect.Method.invoke" to 7,
+        "APIcall::android.telephony.SmsManager" to 8,
+        "APIcall::Runtime.exec" to 9,
+        "APIcall::android.content.Intent.ACTION_BOOT_COMPLETED" to 10,
+        "APIcall::view/MotionEvent.obtain" to 11,
+        "APIcall::location/LocationManager.getLastKnownLocation" to 12,
+        "APIcall::crypto/Cipher.getInstance" to 13,
+        "APIcall::os/PowerManager.newWakeLock" to 14,
+        "APIcall::telephony/TelephonyManager.getDeviceId" to 15,
+        "APIcall::telephony/TelephonyManager.getSubscriberId" to 16,
+        "APIcall::net/wifi/WifiManager.setWifiEnabled" to 17,
+        "APIcall::os/Process.killProcess" to 18,
+        "APIcall::os/Debug.isDebuggerConnected" to 19,
+        "APIcall::dex/DexClassLoader" to 20,
+        "APIcall::content/ContentResolver.query" to 21,
+        "APIcall::content/ContentResolver.registerContentObserver" to 22,
+        "APIcall::app/NotificationManager.notify" to 23,
+        "APIcall::app/admin/DevicePolicyManager" to 24,
+        "APIcall::accounts/AccountManager.getAccounts" to 25,
+        "APIcall::bluetooth/BluetoothAdapter.getDefaultAdapter" to 26,
+        "APIcall::hardware/Camera.open" to 27,
+        "APIcall::graphics/Bitmap.recycle() or BitmapTracker.recycle()" to 28,
+        "APIcall::view/LinearLayout.requestFocus()" to 29,
+        "APIcall::view/ViewTreeObserver.removeGlobalOnLayoutListener()" to 30,
+        "APIcall::view/ViewGroup.isEditMode()" to 31,
+        "APIcall::os/Bundle.getBoolean()" to 32,
+        "APIcall::view/View.isShow" to 33,
+        // Último índice para la característica numérica de conteo
+        "URL_COUNT_FEATURE" to 34
+    )
+
+    const val FEATURE_SIZE = 35
 
     // Función de utilidad: Copiar Uri a File
     private fun copyUriToTempFile(context: Context, apkUri: Uri, tag: String): File? {
@@ -34,7 +79,6 @@ object StaticAnalyzer {
     }
 
     // Función: Calcula el hash SHA-256
-
     private fun calculateSha256(tempFile: File): String {
         return try {
             val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -91,13 +135,21 @@ object StaticAnalyzer {
 
                 if (dexEntry != null) {
                     zipFile.getInputStream(dexEntry).use { inputStream ->
+                        // Lectura de contenido binario/crudo para buscar URLs/IPs
                         val rawContent = inputStream.bufferedReader(Charsets.UTF_8).readText()
 
-                        urlPattern.matcher(rawContent).results().forEach { matchResult ->
-                            rawFindings.add(matchResult.group())
+                        // CORRECCIÓN para API < 34: Usar while(matcher.find()) en lugar de .results()
+
+                        // Extracción de URLs
+                        val urlMatcher = urlPattern.matcher(rawContent)
+                        while (urlMatcher.find()) {
+                            rawFindings.add(urlMatcher.group())
                         }
-                        ipPattern.matcher(rawContent).results().forEach { matchResult ->
-                            val ip = matchResult.group()
+
+                        // Extracción de IPs
+                        val ipMatcher = ipPattern.matcher(rawContent)
+                        while (ipMatcher.find()) {
+                            val ip = ipMatcher.group()
                             if (!ip.startsWith("0.") && ip.split('.').all { it.toIntOrNull() in 0..255 }) {
                                 rawFindings.add(ip)
                             }
@@ -143,102 +195,128 @@ object StaticAnalyzer {
         return@withContext finalReportList.toList()
     }
 
-    // --- LÓGICA DEL VEREDICTO FINAL (SCORING con Umbrales Anti-FP) ---
-    private fun calculateVerdict(permissions: List<String>, urls: List<String>): Pair<String, String> {
-        var score = 0
-        var bonusDeConfianza = 0
-
-        val MALICIOUS_THRESHOLD = 10
-        val SUSPICIOUS_THRESHOLD = 4
-        val explanation = StringBuilder()
-
-        // --- 1. Scoring de Permisos con Justificación ---
-        explanation.append("El veredicto se basa en la Puntuación de Riesgo Acumulado:\n\n")
-        explanation.append("--- INDICADORES POR PERMISOS ---\n")
-        permissions.forEach { perm ->
-            when {
-                // RIESGO CRÍTICO (5 puntos)
-                perm.contains("READ_SMS") -> { score += 5; explanation.append("- [ALTO]: Permiso crítico de lectura de SMS.\n") }
-                perm.contains("BIND_DEVICE_ADMIN") -> { score += 5; explanation.append("- [ALTO]: Permiso crítico de administrador (control total).\n") }
-
-                // RIESGO MEDIO (2 puntos)
-                perm.contains("CALL_LOG") -> { score += 2; explanation.append("- [MEDIO]: Acceso al registro de llamadas.\n") }
-                perm.contains("LOCATION") -> { score += 2; explanation.append("- [MEDIO]: Acceso a la ubicación del dispositivo.\n") }
-
-                // RIESGO BAJO (1 punto - Reducido para evitar FPs)
-                perm.contains("CAMERA") -> { score += 1; explanation.append("- [BAJO]: Uso de la cámara.\n") }
-                perm.contains("CONTACTS") -> { score += 1; explanation.append("- [BAJO]: Acceso a contactos.\n") }
-            }
-        }
-        explanation.append("\n")
-
-
-        // --- 2. Scoring de URLs/IPs con Justificación ---
-        explanation.append("--- INDICADORES DE RED ---\n")
-        urls.forEach { url ->
-            when {
-                // REDUCCIÓN DE RIESGO por fuente confiable
-                url.contains("play.google.com") || url.contains("googleapis.com") -> {
-                    bonusDeConfianza -= 3;
-                    explanation.append("- [CONFIANZA]: Conexión a servicios oficiales de Google/Play Store (Riesgo REDUCIDO).\n")
-                }
-
-                // Patrones de Riesgo
-                url.contains("exfil") || url.contains("c2server") -> { score += 5; explanation.append("- [ALTO]: Keyword C2/Exfil (Posible Comando y Control).\n") }
-                url.matches(Regex("""\b(192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|10\.)\d{1,3}\.\d{1,3}\b""")) -> { score += 2; explanation.append("- [MEDIO]: IP Privada (Comunicación no pública).\n") }
-                url.length > 50 -> { score += 1; explanation.append("- [BAJO]: URL Larga (Posible ofuscación).\n") }
-            }
-        }
-        explanation.append("\n")
-
-        // Factor de confianza al score base
-        val finalScore = score + bonusDeConfianza
-
-        // 3. Determinación del Veredicto
-        val verdict = when {
-            finalScore >= MALICIOUS_THRESHOLD -> "MALICIOSO"
-            finalScore >= SUSPICIOUS_THRESHOLD -> "Sospechoso"
-            else -> "Benigno"
-        }
-
-        // 4. Finalizamos la explicación
-        explanation.insert(0, "Puntuación de Riesgo Total: $finalScore\n\nVEREDICTO FINAL: $verdict\n\n")
-
-        return Pair(verdict, explanation.toString())
+    // --- 3. FUNCIÓN: Extraer APIs/Intents (Simulación) ---
+    private suspend fun extractApisAndIntents(context: Context, apkUri: Uri): List<String> = withContext(Dispatchers.IO) {
+        // SIMULACIÓN para usar en la vectorización TFLite.
+        delay(50)
+        return@withContext listOf(
+            "android.telephony.SmsManager.sendTextMessage", // Para conteo de APIs críticas
+            "java.lang.reflect.Method.invoke", // Feature mapeada: APIcall::java.lang.reflect.Method.invoke
+            "android.content.Intent.ACTION_BOOT_COMPLETED",
+            "android.view.MotionEvent.obtain" // Feature mapeada: APIcall::view/MotionEvent.obtain
+        )
     }
 
 
-    // --- 4. FUNCIÓN: performStaticAnalysis (Orquestación) ---
-    suspend fun performStaticAnalysis(context: Context, apkUri: Uri, jobId: String): StaticReport {
-        println("---- Extrayendo datos REALES (Última versión estable) ----")
+    // --- 4. FUNCIÓN: Vectorización de Características (Input para TFLite) ---
+    private fun vectorizeFeatures(
+        permissions: List<String>,
+        urls: List<String>,
+        apis: List<String>
+    ): FloatArray {
+        val featureVector = FloatArray(FEATURE_SIZE) // Vector inicializado a 0.0f
 
-        // 1. Calcular el Hash SHA-256 (RF-3)
-        // Se requiere copiar el archivo APK una vez más para el cálculo del hash.
+        fun markFeature(name: String) {
+            // Buscamos si el nombre del perm/api coincide con alguna clave del mapa
+            FEATURE_MAP.entries.find { (key, _) ->
+                // Buscamos la coincidencia del nombre completo o parcial
+                name.contains(key.substringAfter("::")) || name.contains(key)
+            }?.let { entry ->
+                featureVector[entry.value] = 1.0f // Marcar como presente (1.0f)
+            }
+        }
+
+        // 1. Mapeo Binario de Permisos y APIs
+        permissions.forEach { perm ->
+            markFeature("Permission::$perm")
+        }
+
+        apis.forEach { api ->
+            // Normalizamos el nombre para el mapeo
+            markFeature("APIcall::$api")
+        }
+
+        // 2. Características Numéricas Adicionales (Conteo de URLs, Índice 34)
+        var thirdPartyUrlCount = 0
+        urls.forEach { url ->
+            // Contamos solo los ítems que NO son encabezados de categoría
+            if (!url.startsWith("CAT_START:")) {
+                thirdPartyUrlCount++
+            }
+        }
+
+        // Usamos el último índice para la característica numérica de conteo
+        val urlCountIndex = FEATURE_MAP["URL_COUNT_FEATURE"]!!
+
+        // Normalización simple: dividir por 50.0f (ejemplo de escala 0-1)
+        featureVector[urlCountIndex] = thirdPartyUrlCount.toFloat() / 50.0f
+
+        return featureVector
+    }
+
+    // --- 5. FUNCIÓN: runTfLiteInference (Ejecución del Modelo IA) ---
+    private fun runTfLiteInference(
+        context: Context,
+        featureVector: FloatArray
+    ): Triple<String, String, Float?> {
+        // Asume que TFLiteModel está definido correctamente en TFLiteModel.kt
+        val tfliteModel = TFLiteModel(context)
+
+        if (tfliteModel.loadModel().not()) {
+            return Triple("ERROR IA", "Fallo al cargar el modelo TFLite. Verifique 'assets/model.tflite'.", null)
+        }
+
+        val probability = tfliteModel.runInference(featureVector)
+        tfliteModel.close()
+
+        return if (probability != null) {
+            val verdict = when {
+                probability >= 0.90f -> "MALICIOSO (IA: ${String.format(Locale.US, "%.2f", probability * 100)}%)"
+                probability >= 0.50f -> "Sospechoso (IA: ${String.format(Locale.US, "%.2f", probability * 100)}%)"
+                else -> "Benigno (IA: ${String.format(Locale.US, "%.2f", probability * 100)}%)"
+            }
+            val details = "Veredicto basado en IA (TFLite).\nProbabilidad de ser Malicioso: ${String.format(Locale.US, "%.2f", probability * 100)}%"
+            Triple(verdict, details, probability)
+        } else {
+            Triple("ERROR IA", "Fallo en la inferencia TFLite. Vector de entrada incorrecto.", null)
+        }
+    }
+
+
+    // --- 6. FUNCIÓN: performStaticAnalysis (Orquestación) ---
+    suspend fun performStaticAnalysis(context: Context, apkUri: Uri, jobId: String): StaticReport {
+        val startTime = System.currentTimeMillis()
+
+        // 1. Hash SHA-256
         val tempFileForHash = copyUriToTempFile(context, apkUri, "hash")
         val sha256Hash = if (tempFileForHash != null) {
-            // Calcula el hash y luego borra el archivo temporal
             calculateSha256(tempFileForHash).also { tempFileForHash.delete() }
         } else {
             "SHA-256_FAILED"
         }
 
-        // 2. Extraer Permisos y URLs (Análisis)
+        // 2. Extracción de Características
         val realPermissions = extractPermissionsWithApkParser(context, apkUri)
         val realUrlsIps = extractUrlsAndIps(context, apkUri)
+        val detectedApis = extractApisAndIntents(context, apkUri)
 
-        // 3. Calcular Veredicto y Justificación
-        val (verdict, verdictDetails) = calculateVerdict(realPermissions, realUrlsIps)
+        // 3. Vectorización e Inferencia IA
+        val featureVector = vectorizeFeatures(realPermissions, realUrlsIps, detectedApis)
+        val (verdict, verdictDetails, aiProbability) = runTfLiteInference(context, featureVector)
 
-        delay(200)
+        val totalTime = System.currentTimeMillis() - startTime
+        println("Análisis completado en: ${totalTime}ms.")
 
-        // 4. Devolver el Reporte
+        // 4. Devolver el Reporte (Asumiendo que StaticReport ha sido actualizado para incluir aiProbability y apisDetected)
         return StaticReport(
             jobId = jobId,
             sha256 = sha256Hash,
             verdict = verdict,
+            aiProbability = aiProbability,
             permissions = realPermissions,
             urls = realUrlsIps,
-            verdictDetails = verdictDetails
+            apisDetected = detectedApis,
+            verdictDetails = "$verdictDetails\nVector de Entrada (Debug): ${featureVector.joinToString(separator = ", ", limit = 10)}"
         )
     }
 }

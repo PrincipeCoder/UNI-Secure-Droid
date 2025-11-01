@@ -1,16 +1,18 @@
 package com.example.unisecuredroid.viewmodels
 
-import android.content.Context
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.unisecuredroid.data.StaticAnalyzer
 import com.example.unisecuredroid.data.models.StaticReport
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class ReportViewModel : ViewModel() {
+
+    // --- Data Holder Centralizada para el Reporte (Consumidor) ---
+    object TempDataHolder {
+        var lastReport: StaticReport? = null
+    }
 
     // Estado de la UI
     sealed class ReportState {
@@ -23,29 +25,25 @@ class ReportViewModel : ViewModel() {
     private val _reportState = MutableStateFlow<ReportState>(ReportState.Idle)
     val reportState: StateFlow<ReportState> = _reportState
 
-    object TempDataHolder {
-        var lastApkUri: Uri? = null
-        var lastJobId: String? = null
-    }
-
-    fun fetchReport(context: Context, jobId: String) {
+    fun fetchReport(jobId: String) {
         viewModelScope.launch {
             _reportState.value = ReportState.Loading
+
+            val report = TempDataHolder.lastReport
+
             try {
-                // Leemos el Uri guardado temporalmente
-                val apkUri = TempDataHolder.lastApkUri
-                // Validamos que el Uri exista y corresponda al JobId
-                if (apkUri == null || TempDataHolder.lastJobId != jobId) {
-                    throw Exception("Error interno: No se encontró el archivo a analizar.")
+                // Validación de Datos (Comprueba que el ID coincide y el reporte existe)
+                if (report == null || report.jobId != jobId) {
+                    throw IllegalStateException("Error interno: Reporte no encontrado para el Job ID $jobId. Posiblemente se perdió el estado.")
                 }
 
-                // LLAMADA AL StaticAnalyzer
-                val report = StaticAnalyzer.performStaticAnalysis(context, apkUri, jobId)
-
                 _reportState.value = ReportState.Success(report)
+
+                // Limpiar la referencia para evitar fugas de memoria, pero solo si coincide
+                TempDataHolder.lastReport = null
+
             } catch (e: Exception) {
-                // Manejo de errores (del análisis o del TempDataHolder)
-                _reportState.value = ReportState.Error(e.message ?: "Error desconocido durante el análisis")
+                _reportState.value = ReportState.Error(e.message ?: "Error al recuperar el reporte.")
             }
         }
     }

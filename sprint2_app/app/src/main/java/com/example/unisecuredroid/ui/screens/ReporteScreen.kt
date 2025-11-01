@@ -29,6 +29,7 @@ import com.itextpdf.text.pdf.PdfWriter
 import java.io.File
 import java.io.FileOutputStream
 import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ReporteScreen(
@@ -41,7 +42,7 @@ fun ReporteScreen(
     val themeColors = MaterialTheme.colorScheme
 
     LaunchedEffect(jobId) {
-        reportViewModel.fetchReport(context, jobId)
+        reportViewModel.fetchReport(jobId)
     }
 
     Box(
@@ -176,11 +177,23 @@ private fun ReportView(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
-                    text = report.verdict,
+                    text = report.verdict, // Veredicto de IA (ej: MALICIOSO (IA: 98%))
                     color = verdictColor,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
+
+                // --- CAMBIO CLAVE 1: Mostrar la Probabilidad de Riesgo (IA) ---
+                report.aiProbability?.let { prob ->
+                    val score = String.format(Locale.US, "%.2f", prob * 100)
+                    Text(
+                        text = "Riesgo de IA: $score%",
+                        color = themeColors.onSurface.copy(alpha = 0.9f),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                // ------------------------------------------------------------------
             }
         }
 
@@ -248,14 +261,26 @@ private fun ReportView(
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(text = "Permisos Detectados:", color = themeColors.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            text = "APIs/Intents Sospechosos:",
+                            color = themeColors.primary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
-                        report.permissions.forEach { permission ->
-                            Text(
-                                " • ${permission.substringAfterLast('.')}",
-                                color = themeColors.onSurface,
-                                modifier = Modifier.padding(start = 8.dp, bottom = 4.dp)
-                            )
+
+                        if (report.apisDetected.isEmpty()) {
+                            Text("No se detectaron APIs/Intents de alto riesgo.", color = themeColors.onSurface.copy(alpha = 0.7f))
+                        } else {
+                            // Usamos LazyColumn anidada o simplemente un forEach si la lista es corta
+                            report.apisDetected.forEach { api ->
+                                Text(
+                                    " • $api",
+                                    color = themeColors.onSurface,
+                                    modifier = Modifier.padding(start = 8.dp, bottom = 4.dp),
+                                    fontSize = 14.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -282,7 +307,7 @@ private fun ReportView(
                             fontSize = 16.sp,
                             modifier = Modifier.padding(horizontal = 4.dp)
                         )
-                        Divider(color = themeColors.secondary.copy(alpha = 0.5f), thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
+                        HorizontalDivider(color = themeColors.secondary.copy(alpha = 0.5f), thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
                     }
 
                     else -> {
@@ -305,7 +330,7 @@ private fun ReportView(
         ) {
             Button(
                 onClick = {
-                    val pdfFile = generarPDF(context, report)
+                    val pdfFile = generarPDF(report)
                     val mensaje = if (pdfFile != null) {
                         "PDF guardado en Descargas"
                     } else { "Error al generar PDF." }
@@ -352,32 +377,44 @@ fun DetailRow(label: String, value: String, themeColors: ColorScheme) {
     }
 }
 
-
 // Función generar PDF
-private fun generarPDF(context: Context, report: StaticReport): File? {
+private fun generarPDF(report: StaticReport): File? {
     return try {
+        // Formatear la probabilidad para el PDF
+        val aiScore = report.aiProbability?.let {
+            String.format(Locale.US, "%.2f%%", it * 100)
+        } ?: "N/A"
+
+        val permissionsText = report.permissions.joinToString("\n") { " - ${it.substringAfterLast('.')}" }
+        val apisText = if (report.apisDetected.isEmpty()) " - No se detectaron APIs/Intents de riesgo." else report.apisDetected.joinToString("\n") { " - $it" }
+        val urlsText = report.urls.joinToString("\n") {
+            if (it.startsWith("CAT_START:")) "\n${it.substringAfter(':', "CLASE DESCONOCIDA").uppercase()}\n" else " - $it"
+        }
+
         val pdfText = """
             UNIVERSIDAD NACIONAL DE INGENIERÍA
             Proyecto: UNI-SecureDroid
             Job ID: ${report.jobId}
-            Hash SHA-256: ${report.sha256}  // <-- Hash añadido al PDF
+            Hash SHA-256: ${report.sha256}
             Fecha: ${Date()}
 
             REPORTE DE ANÁLISIS ESTÁTICO
             ------------------------------------
 
             VEREDICTO PRELIMINAR: ${report.verdict}
-            
+            PROBABILIDAD IA: $aiScore
+
             DETALLES TÉCNICOS:
             ${report.verdictDetails}
 
             --- PERMISOS ---
-            ${report.permissions.joinToString("\n") { " - ${it.substringAfterLast('.')}" }}
+            $permissionsText
+
+            --- APIs / INTENTS SOSPECHOSOS ---
+            $apisText
 
             --- URLs/IPs CLASIFICADAS ---
-            ${report.urls.joinToString("\n") {
-            if (it.startsWith("CAT_START:")) "\n${it.substringAfter(':', "CLASE DESCONOCIDA").uppercase()}\n" else " - $it"
-        }} 
+            $urlsText
 
         """.trimIndent()
 

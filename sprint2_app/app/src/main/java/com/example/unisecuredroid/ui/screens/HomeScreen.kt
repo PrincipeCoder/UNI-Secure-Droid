@@ -1,7 +1,7 @@
 package com.example.unisecuredroid.ui.screens
 
-import android.net.Uri
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.example.unisecuredroid.viewmodels.UploadViewModel
-import kotlinx.coroutines.launch
+import com.example.unisecuredroid.viewmodels.UploadViewModel.AnalysisState // Importar el estado correcto
 
 @Composable
 fun HomeScreen(
@@ -28,32 +28,41 @@ fun HomeScreen(
 ) {
     val context = LocalContext.current
     var selectedFileName by remember { mutableStateOf<String?>(null) }
-    var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
 
-    val uploadState by uploadViewModel.uploadState.collectAsState()
-    val scope = rememberCoroutineScope()
+    // Usamos el estado correcto del ViewModel
+    val analysisState by uploadViewModel.analysisState.collectAsState()
     val themeColors = MaterialTheme.colorScheme
+
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
+    ) { uri ->
         uri?.let {
-            selectedFileUri = it
+            // 1. Obtener el nombre del archivo
             val cursor = context.contentResolver.query(it, null, null, null, null)
             cursor?.use { c ->
-                val nameIndex = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val nameIndex = c.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)
                 if (c.moveToFirst()) {
                     selectedFileName = c.getString(nameIndex)
                 }
             }
-            uploadViewModel.resetState()
+            // 2. Notificar al ViewModel que el archivo ha sido seleccionado
+            uploadViewModel.setApkUri(it)
         }
     }
 
-    LaunchedEffect(uploadState) {
-        if (uploadState is UploadViewModel.UploadState.Success) {
-            val jobId = (uploadState as UploadViewModel.UploadState.Success).jobId
-            navController.navigate("reporte/$jobId")
-            uploadViewModel.resetState()
+    // --- LaunchedEffect: Manejo de Navegación y Errores ---
+    LaunchedEffect(analysisState) {
+        when (analysisState) {
+            is AnalysisState.Success -> {
+                val jobId = (analysisState as AnalysisState.Success).jobId
+                navController.navigate("reporte/$jobId")
+                uploadViewModel.resetState() // Limpiar el estado después de la navegación
+            }
+            is AnalysisState.Error -> {
+                val message = (analysisState as AnalysisState.Error).message
+                Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            }
+            else -> {}
         }
     }
 
@@ -68,7 +77,7 @@ fun HomeScreen(
             modifier = Modifier.padding(horizontal = 32.dp)
         ) {
             Text(
-                text = "Portal de Carga",
+                text = "Portal de Análisis",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = themeColors.onBackground,
@@ -84,7 +93,8 @@ fun HomeScreen(
 
             // Botón Cargar Archivo
             Button(
-                onClick = { filePicker.launch("*/*") }, // Permitimos cualquier archivo
+                // Permitir solo APKs (aunque GetContent es amplio, el filtro es esencial)
+                onClick = { filePicker.launch("application/vnd.android.package-archive") },
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = themeColors.surface),
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp, pressedElevation = 2.dp),
@@ -101,47 +111,47 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Nombre archivo seleccionado
-            selectedFileName?.let {
-                Text(
-                    "Archivo: $it",
-                    color = themeColors.onBackground.copy(alpha = 0.8f),
-                    modifier = Modifier.padding(bottom = 40.dp)
-                )
-            }
-            if(selectedFileName == null) {
+            // Nombre archivo seleccionado (si el estado es FileSelected o Analyzing)
+            if (analysisState is AnalysisState.FileSelected || analysisState is AnalysisState.Analyzing) {
+                selectedFileName?.let {
+                    Text(
+                        "Archivo: $it",
+                        color = themeColors.onBackground.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(bottom = 40.dp)
+                    )
+                } ?: Spacer(modifier = Modifier.height(60.dp))
+            } else {
                 Spacer(modifier = Modifier.height(60.dp)) // Reserve space
             }
 
             // Mensaje de Error
-            if (uploadState is UploadViewModel.UploadState.Error) {
+            if (analysisState is AnalysisState.Error) {
                 Text(
-                    (uploadState as UploadViewModel.UploadState.Error).message,
+                    (analysisState as AnalysisState.Error).message,
                     color = Color.Red,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
             } else {
-                Spacer(modifier = Modifier.height(24.dp)) // Keep space consistent
+                Spacer(modifier = Modifier.height(24.dp))
             }
 
             // Botón Analizar Archivo / Indicador Carga
-            if (uploadState is UploadViewModel.UploadState.Loading) {
+            if (analysisState is AnalysisState.Analyzing) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = themeColors.secondary)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Subiendo y procesando...", color = themeColors.onBackground.copy(alpha = 0.8f))
+                    Text(
+                        "Ejecutando Análisis Estático (IA)...",
+                        color = themeColors.onBackground.copy(alpha = 0.8f)
+                    )
                 }
-            } else if (uploadState !is UploadViewModel.UploadState.Success) {
-                // Botón Analizar (Azul)
+            } else if (analysisState !is AnalysisState.Success) {
+                // Botón Analizar (Azul), habilitado solo si el estado es FileSelected
                 Button(
                     onClick = {
-                        if (selectedFileUri != null && selectedFileName != null) {
-                            scope.launch {
-                                uploadViewModel.uploadFile(context, selectedFileName!!, selectedFileUri!!)
-                            }
-                        }
+                        uploadViewModel.startStaticAnalysis(context)
                     },
-                    enabled = selectedFileUri != null,
+                    enabled = analysisState is AnalysisState.FileSelected,
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = themeColors.secondary,
@@ -153,7 +163,7 @@ fun HomeScreen(
                         .height(50.dp)
                 ) {
                     Text(
-                        "Analizar Archivo",
+                        "Analizar Archivo con IA",
                         color = themeColors.onSecondary,
                         fontWeight = FontWeight.Bold
                     )
