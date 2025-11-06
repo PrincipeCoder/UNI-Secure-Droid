@@ -1,19 +1,38 @@
 import requests
 import time
+import os
 
 print("=== PRUEBA MANUAL DEL SISTEMA ===\n")
 
-# Crear un APK de prueba simple (archivo dummy)
-print("[1] Creando APK de prueba...")
-with open("test_dummy.apk", "wb") as f:
-    f.write(b"PK\x03\x04" + b"\x00" * 100)  # Firma básica de ZIP/APK
-print("✓ APK creado: test_dummy.apk\n")
+# Buscar un APK real en el directorio tests
+print("[1] Buscando APK de prueba...")
+apk_file = None
+test_paths = [
+    "tests/test_app.apk",
+    "sprint2_app/app/build/outputs/apk/debug/app-debug.apk",
+    "test_dummy.apk"
+]
+
+for path in test_paths:
+    if os.path.exists(path):
+        apk_file = path
+        print(f"✓ APK encontrado: {apk_file}")
+        break
+
+if not apk_file:
+    print("⚠ No se encontró un APK real. Creando APK dummy...")
+    apk_file = "test_dummy.apk"
+    with open(apk_file, "wb") as f:
+        f.write(b"PK\x03\x04" + b"\x00" * 100)
+    print("✓ APK dummy creado (puede fallar el análisis)")
+
+print()
 
 # Subir APK
 print("[2] Subiendo APK al servidor...")
 try:
-    with open("test_dummy.apk", "rb") as f:
-        files = {"file": ("test_dummy.apk", f, "application/vnd.android.package-archive")}
+    with open(apk_file, "rb") as f:
+        files = {"file": (os.path.basename(apk_file), f, "application/vnd.android.package-archive")}
         response = requests.post("http://localhost:8000/analyze", files=files)
     
     if response.status_code == 202:

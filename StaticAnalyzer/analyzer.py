@@ -13,10 +13,6 @@ from config import CELERY_BROKER_URL, ANALYSIS_TIMEOUT_SECONDS
 from utils.timeout import Timeout, TimeoutException
 from utils.error_handling import InvalidAPKError
 
-# Importamos la base de datos simulada desde el módulo de estado compartido
-# para actualizar el estado de los trabajos.
-from shared_state import JOBS_DB
-
 # --- Configuración Inicial ---
 
 # Silenciamos el logging de Androguard para que no sea tan verboso
@@ -25,20 +21,21 @@ androguard_logging(level=logging.ERROR)
 # 1. Creamos la instancia de la aplicación Celery.
 # El primer argumento es el nombre del módulo actual.
 # El argumento 'broker' le dice a Celery dónde está nuestro RabbitMQ.
-app = Celery('StaticAnalyzer', broker=CELERY_BROKER_URL)
+app = Celery('StaticAnalyzer', broker=CELERY_BROKER_URL, backend='rpc://')
+app.conf.update(
+    task_track_started=True,
+    result_expires=3600,
+)
 
 # --- Tarea Principal de Celery ---
 
-@app.task(name='tasks.analyze_static')
+@app.task(name='analyzer.analyze_static')
 def analyze_static(job_id: str, object_path: str):
     """
     Tarea de Celery que realiza el análisis estático de un APK.
     Esta función se ejecuta en un proceso 'worker' separado de la API.
     """
     print(f"WORKER: [{job_id}] Recibido. Analizando archivo en: {object_path}")
-    
-    # Actualizamos el estado en nuestra DB simulada
-    JOBS_DB[job_id]["status"] = "processing"
 
     try:
         # 2. Envolvemos toda la lógica de análisis en nuestro gestor de Timeout.
@@ -58,8 +55,6 @@ def analyze_static(job_id: str, object_path: str):
 
         # Si todo va bien, el trabajo está completo.
         print(f"WORKER: [{job_id}] Análisis completado exitosamente.")
-        JOBS_DB[job_id]["status"] = "completed"
-        JOBS_DB[job_id]["features"] = static_features
         
         # 5. Entregamos el resultado al siguiente componente (FeatureBuilder).
         # Por ahora, simplemente lo imprimimos en la consola del worker.
@@ -70,23 +65,17 @@ def analyze_static(job_id: str, object_path: str):
     except TimeoutException:
         error_msg = f"Timeout > {ANALYSIS_TIMEOUT_SECONDS}s. Análisis abortado."
         print(f"WORKER: ERROR [{job_id}] - {error_msg}")
-        JOBS_DB[job_id]["status"] = "error"
-        JOBS_DB[job_id]["error_details"] = error_msg
         return {"job_id": job_id, "status": "error", "message": error_msg}
     
     except InvalidAPKError as e:
         error_msg = f"Archivo APK corrupto o inválido: {e}"
         print(f"WORKER: ERROR [{job_id}] - {error_msg}")
-        JOBS_DB[job_id]["status"] = "error"
-        JOBS_DB[job_id]["error_details"] = error_msg
         return {"job_id": job_id, "status": "error", "message": error_msg}
 
     except Exception as e:
         # Capturamos cualquier otro error inesperado (fallo en descompilación, etc.)
         error_msg = f"Fallo inesperado durante el análisis: {e}"
         print(f"WORKER: ERROR [{job_id}] - {error_msg}")
-        JOBS_DB[job_id]["status"] = "error"
-        JOBS_DB[job_id]["error_details"] = error_msg
         return {"job_id": job_id, "status": "error", "message": error_msg}
 
 # --- Funciones Auxiliares para el Análisis ---

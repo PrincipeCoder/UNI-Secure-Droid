@@ -63,7 +63,7 @@ async def create_analysis_job(file: UploadFile = File(...)):
     # 9. ¡La parte clave! Encolamos la tarea en Celery para que un worker la procese.
     # .delay() es la forma de llamar a una tarea de Celery de forma asíncrona.
     # Le pasamos los datos que necesita el worker para realizar el trabajo.
-    analyze_static.delay(job_id=job_id, object_path=apk_path)
+    analyze_static.apply_async(args=[job_id, apk_path], task_id=job_id)
 
     print(f"Trabajo '{job_id}' creado para el archivo '{file.filename}'. Tarea encolada.")
     
@@ -80,6 +80,32 @@ async def get_job_status(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Trabajo no encontrado.")
     
-    # Podríamos añadir más detalles, como el resultado si ya está completado.
-    # Por ahora, solo devolvemos la información que tenemos.
+    # Intentar obtener el resultado de Celery si existe
+    from celery.result import AsyncResult
+    from analyzer import app as celery_app
+    
+    # Buscar la tarea en Celery
+    task_result = AsyncResult(job_id, app=celery_app)
+    
+    print(f"DEBUG: Celery state for {job_id}: {task_result.state}")
+    print(f"DEBUG: Task ready: {task_result.ready()}")
+    
+    if task_result.ready():
+        if task_result.successful():
+            result = task_result.result
+            print(f"DEBUG: Task result: {result}")
+            if isinstance(result, dict) and 'features' in result:
+                job['status'] = 'completed'
+                job['features'] = result['features']
+            elif isinstance(result, dict) and result.get('status') == 'error':
+                job['status'] = 'error'
+                job['error_details'] = result.get('message', 'Error desconocido')
+        else:
+            job['status'] = 'error'
+            job['error_details'] = str(task_result.info)
+    elif task_result.state == 'PENDING':
+        job['status'] = 'pending'
+    elif task_result.state in ['STARTED', 'RETRY']:
+        job['status'] = 'processing'
+    
     return job
