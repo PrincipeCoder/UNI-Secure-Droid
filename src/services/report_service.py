@@ -19,12 +19,9 @@ class ReportService:
     def render_pdf(self, entrada: dict) -> bytes:
         """
         Genera un archivo PDF en memoria usando los datos de entrada.
-        Devuelve el contenido binario del PDF (bytes).
+        RF-28, RF-29: Incluye hallazgos estáticos y dinámicos.
         """
-        # Creamos un buffer en memoria para almacenar el PDF temporalmente
         buffer = BytesIO()
-
-        # Inicializamos un "canvas" (hoja PDF) con tamaño carta
         c = canvas.Canvas(buffer, pagesize=letter)
 
         # Título principal del reporte
@@ -37,23 +34,44 @@ class ReportService:
         c.drawString(100, 700, f"Riesgo: {entrada.get('risk', 'N/A')}")
         c.drawString(100, 680, f"Familia: {entrada.get('family', 'N/A')}")
 
-        # Imprimimos las señales más relevantes, una debajo de otra
-        y = 650  # posición inicial vertical
-        c.drawString(100, y, "Señales más relevantes:")
-        for signal in entrada.get("top_signals", []):
-            y -= 20  # desplazamos hacia abajo 20px por línea
+        y = 650
+        
+        # Señales estáticas
+        c.drawString(100, y, "Señales estáticas:")
+        for signal in entrada.get("top_signals", [])[:5]:
+            y -= 20
             c.drawString(120, y, f"- {signal}")
+        
+        # RF-28, RF-29: Hallazgos dinámicos
+        dynamic = entrada.get("dynamic_features", {})
+        if dynamic:
+            y -= 30
+            c.setFont("Helvetica-Bold", 12)
+            c.drawString(100, y, "Hallazgos Dinámicos:")
+            c.setFont("Helvetica", 10)
+            
+            # Conexiones de red
+            network = dynamic.get("network", {})
+            connections = network.get("connections", [])
+            if connections:
+                y -= 20
+                c.drawString(120, y, f"Conexiones de red: {len(connections)}")
+                for conn in connections[:5]:
+                    y -= 15
+                    c.drawString(140, y, f"- {conn}")
+            
+            # Operaciones de archivos
+            files = dynamic.get("file_operations", [])
+            if files:
+                y -= 20
+                c.drawString(120, y, f"Archivos creados/modificados: {len(files)}")
+                for f in files[:5]:
+                    y -= 15
+                    c.drawString(140, y, f"- {f.get('path', 'N/A')}")
 
-        # Cerramos y guardamos el PDF en el buffer
         c.save()
-
-        # Obtenemos los bytes finales del PDF
         pdf_data = buffer.getvalue()
-
-        # Cerramos el buffer para liberar memoria
         buffer.close()
-
-        # Retornamos el PDF como bytes (contenido binario)
         return pdf_data
 
     def generate_report(self, entrada: dict) -> dict:

@@ -1,0 +1,84 @@
+# /docker-compose.yml
+# Orquestación completa del sistema
+
+version: '3.8'
+
+services:
+  # Broker de mensajes
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - backend
+
+  # Analizador estático
+  static-analyzer:
+    build:
+      context: ./StaticAnalyzer
+    environment:
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      ANALYSIS_TIMEOUT_SECONDS: 60
+    depends_on:
+      - rabbitmq
+    volumes:
+      - apk_storage:/tmp/apk_storage
+    networks:
+      - backend
+    command: celery -A analyzer worker --loglevel=info -Q static_analysis
+
+  # Analizador dinámico (sandbox)
+  # RNF-4: Red aislada, sin acceso al host
+  dynamic-analyzer:
+    build:
+      context: ./DynamicAnalyzer
+    environment:
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      DYNAMIC_TIMEOUT: 90
+      AVD_NAME: malware_sandbox
+      EMULATOR_PORT: 5554
+    depends_on:
+      - rabbitmq
+    volumes:
+      - apk_storage:/tmp/apk_storage
+      - sandbox_artifacts:/tmp/sandbox_artifacts:rw
+    networks:
+      - sandbox_isolated  # RNF-4: Red separada
+    privileged: true  # Necesario para KVM/emulador
+    devices:
+      - /dev/kvm
+    command: celery -A analyzer worker --loglevel=info -Q dynamic_analysis
+
+  # Orquestador
+  orchestrator:
+    build:
+      context: ./Orchestrator
+    environment:
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+    depends_on:
+      - rabbitmq
+      - static-analyzer
+      - dynamic-analyzer
+    networks:
+      - backend
+    command: celery -A orchestrator worker --loglevel=info
+
+networks:
+  backend:
+    driver: bridge
+  sandbox_isolated:  # RNF-4: Red aislada para sandbox
+    driver: bridge
+    internal: true  # Sin acceso a internet
+
+volumes:
+  apk_storage:
+  sandbox_artifacts:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: mode=0600,uid=1000  # RNF-7: Permisos mínimos
