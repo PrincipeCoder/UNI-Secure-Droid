@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.example.unisecuredroid.data.models.StaticReport
+import com.example.unisecuredroid.data.models.AnalysisReport
 import com.example.unisecuredroid.viewmodels.ReportViewModel
 import com.itextpdf.text.Document
 import com.itextpdf.text.Paragraph
@@ -57,10 +57,15 @@ fun ReporteScreen(
                     CircularProgressIndicator(color = themeColors.secondary)
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        // Texto corregido tras la eliminación de workers
-                        text = "Realizando Análisis Estático...",
+                        text = "Realizando Análisis Completo...",
                         fontSize = 18.sp,
                         color = themeColors.onBackground.copy(alpha = 0.8f)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "(Estático + Dinámico)",
+                        fontSize = 14.sp,
+                        color = themeColors.onBackground.copy(alpha = 0.6f)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -114,16 +119,15 @@ fun ReporteScreen(
 @Composable
 private fun ReportView(
     navController: NavController,
-    report: StaticReport,
+    report: AnalysisReport,
     context: Context,
     themeColors: ColorScheme
 ) {
     var showScoreDetails by remember { mutableStateOf(false) }
 
-    // 1. Lógica para determinar el color basado en el veredicto
-    val verdictColor = when (report.verdict) {
-        "MALICIOSO" -> Color.Red
-        "Sospechoso" -> Color(0xFFFF9800)
+    val verdictColor = when {
+        report.verdict.contains("MALICIOSO", ignoreCase = true) -> Color.Red
+        report.verdict.contains("Sospechoso", ignoreCase = true) -> Color(0xFFFF9800)
         else -> Color(0xFF4CAF50)
     }
 
@@ -183,17 +187,18 @@ private fun ReportView(
                     fontWeight = FontWeight.Bold
                 )
 
-                // --- CAMBIO CLAVE 1: Mostrar la Probabilidad de Riesgo (IA) ---
-                report.aiProbability?.let { prob ->
-                    val score = String.format(Locale.US, "%.2f", prob * 100)
-                    Text(
-                        text = "Riesgo de IA: $score%",
-                        color = themeColors.onSurface.copy(alpha = 0.9f),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                // ------------------------------------------------------------------
+                val score = String.format(Locale.US, "%.2f", report.aiProbability * 100)
+                Text(
+                    text = "Riesgo: $score% | ${report.risk}",
+                    color = themeColors.onSurface.copy(alpha = 0.9f),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Familia: ${report.family}",
+                    color = themeColors.onSurface.copy(alpha = 0.7f),
+                    fontSize = 14.sp
+                )
             }
         }
 
@@ -206,10 +211,16 @@ private fun ReportView(
                     LazyColumn {
                         item {
                             Text(
-                                // Usa el campo verdictDetails para la justificación
-                                report.verdictDetails,
+                                "Análisis completado en ${report.analysisTimeSeconds}s",
                                 color = themeColors.onBackground,
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                "Timestamp: ${report.timestamp}",
+                                color = themeColors.onBackground.copy(alpha = 0.7f),
+                                fontSize = 12.sp
                             )
                         }
                     }
@@ -244,7 +255,7 @@ private fun ReportView(
 
                         // Muestra el Job ID y el Hash
                         DetailRow(label = "Job ID:", value = report.jobId, themeColors = themeColors)
-                        DetailRow(label = "Hash SHA-256:", value = report.sha256, themeColors = themeColors)
+                        DetailRow(label = "SHA-256:", value = report.sha256, themeColors = themeColors)
                     }
                 }
             }
@@ -269,11 +280,10 @@ private fun ReportView(
                         )
                         Spacer(modifier = Modifier.height(8.dp))
 
-                        if (report.apisDetected.isEmpty()) {
+                        if (report.staticAnalysis.apisDetected.isEmpty()) {
                             Text("No se detectaron APIs/Intents de alto riesgo.", color = themeColors.onSurface.copy(alpha = 0.7f))
                         } else {
-                            // Usamos LazyColumn anidada o simplemente un forEach si la lista es corta
-                            report.apisDetected.forEach { api ->
+                            report.staticAnalysis.apisDetected.forEach { api ->
                                 Text(
                                     " • $api",
                                     color = themeColors.onSurface,
@@ -294,29 +304,41 @@ private fun ReportView(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            items(report.urls) { item ->
-                when {
+            items(report.staticAnalysis.topSignals) { signal ->
+                Text(
+                    " • $signal",
+                    color = themeColors.onSurface,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
+                )
+            }
 
-                    item.startsWith("CAT_START:") -> {
-                        val subtitle = item.substringAfter("CAT_START:")
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            subtitle,
-                            color = themeColors.secondary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
-                        HorizontalDivider(color = themeColors.secondary.copy(alpha = 0.5f), thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
-                    }
-
-                    else -> {
-                        Text(
-                            " • $item",
-                            color = themeColors.onSurface,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(start = 8.dp, bottom = 2.dp)
-                        )
+            item {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = themeColors.surface),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Análisis Dinámico (Sandbox)", color = themeColors.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        Text("Conexiones de Red:", fontWeight = FontWeight.SemiBold, color = themeColors.onSurface)
+                        report.dynamicFeatures.network.connections.forEach {
+                            Text(" • $it", fontSize = 14.sp, color = themeColors.onSurface)
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Operaciones de Archivos:", fontWeight = FontWeight.SemiBold, color = themeColors.onSurface)
+                        report.dynamicFeatures.fileOperations.forEach {
+                            Text(" • ${it.action}: ${it.path}", fontSize = 14.sp, color = themeColors.onSurface)
+                        }
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Datos enviados: ${report.dynamicFeatures.network.dataSentKb} KB", fontSize = 14.sp, color = themeColors.onSurface)
                     }
                 }
             }
@@ -378,18 +400,15 @@ fun DetailRow(label: String, value: String, themeColors: ColorScheme) {
 }
 
 // Función generar PDF
-private fun generarPDF(report: StaticReport): File? {
+private fun generarPDF(report: AnalysisReport): File? {
     return try {
         // Formatear la probabilidad para el PDF
-        val aiScore = report.aiProbability?.let {
-            String.format(Locale.US, "%.2f%%", it * 100)
-        } ?: "N/A"
-
-        val permissionsText = report.permissions.joinToString("\n") { " - ${it.substringAfterLast('.')}" }
-        val apisText = if (report.apisDetected.isEmpty()) " - No se detectaron APIs/Intents de riesgo." else report.apisDetected.joinToString("\n") { " - $it" }
-        val urlsText = report.urls.joinToString("\n") {
-            if (it.startsWith("CAT_START:")) "\n${it.substringAfter(':', "CLASE DESCONOCIDA").uppercase()}\n" else " - $it"
-        }
+        val aiScore = String.format(Locale.US, "%.2f%%", report.aiProbability * 100)
+        
+        val signalsText = report.staticAnalysis.topSignals.joinToString("\n") { " - $it" }
+        val apisText = if (report.staticAnalysis.apisDetected.isEmpty()) " - No se detectaron APIs/Intents de riesgo." else report.staticAnalysis.apisDetected.joinToString("\n") { " - $it" }
+        val connectionsText = report.dynamicFeatures.network.connections.joinToString("\n") { " - $it" }
+        val filesText = report.dynamicFeatures.fileOperations.joinToString("\n") { " - ${it.action}: ${it.path}" }
 
         val pdfText = """
             UNIVERSIDAD NACIONAL DE INGENIERÍA
@@ -401,20 +420,26 @@ private fun generarPDF(report: StaticReport): File? {
             REPORTE DE ANÁLISIS ESTÁTICO
             ------------------------------------
 
-            VEREDICTO PRELIMINAR: ${report.verdict}
+            VEREDICTO: ${report.verdict}
+            RIESGO: ${report.risk}
+            FAMILIA: ${report.family}
             PROBABILIDAD IA: $aiScore
+            TIEMPO DE ANÁLISIS: ${report.analysisTimeSeconds}s
 
-            DETALLES TÉCNICOS:
-            ${report.verdictDetails}
-
-            --- PERMISOS ---
-            $permissionsText
+            --- SEÑALES ESTÁTICAS ---
+            $signalsText
 
             --- APIs / INTENTS SOSPECHOSOS ---
             $apisText
 
-            --- URLs/IPs CLASIFICADAS ---
-            $urlsText
+            --- ANÁLISIS DINÁMICO (SANDBOX) ---
+            Conexiones de Red:
+            $connectionsText
+            
+            Operaciones de Archivos:
+            $filesText
+            
+            Datos Enviados: ${report.dynamicFeatures.network.dataSentKb} KB
 
         """.trimIndent()
 
