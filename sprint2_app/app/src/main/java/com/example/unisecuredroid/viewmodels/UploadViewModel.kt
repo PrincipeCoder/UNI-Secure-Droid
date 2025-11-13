@@ -4,12 +4,16 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.unisecuredroid.data.StaticAnalyzer
-import com.example.unisecuredroid.data.models.StaticReport
+import com.example.unisecuredroid.data.api.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import java.util.UUID
+import kotlinx.coroutines.delay
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
 
 class UploadViewModel : ViewModel() {
 
@@ -25,29 +29,23 @@ class UploadViewModel : ViewModel() {
     private val _analysisState = MutableStateFlow<AnalysisState>(AnalysisState.Idle)
     val analysisState: StateFlow<AnalysisState> = _analysisState
 
-    // 2. Data temporal compartida (El Reporte completo se almacena aquí)
     object TempDataHolder {
-        var lastApkUri: Uri? = null // Guardamos el URI seleccionado
+        var lastApkUri: Uri? = null
         var lastJobId: String? = null
     }
 
-    // 3. Función para recibir el APK
     fun setApkUri(uri: Uri?) {
         if (uri == null) {
             _analysisState.value = AnalysisState.Error("URI del archivo no válida.")
-            // Resetear el estado a Idle si la URI es nula
             _analysisState.value = AnalysisState.Idle
         } else {
             TempDataHolder.lastApkUri = uri
             _analysisState.value = AnalysisState.FileSelected
-            // Limpiamos errores anteriores si el archivo es válido
-
         }
     }
 
-    // 4. Función para iniciar el Análisis Estático y la Inferencia de IA
     fun startStaticAnalysis(context: Context) {
-        if (_analysisState.value == AnalysisState.Analyzing) return // Evitar doble ejecución
+        if (_analysisState.value == AnalysisState.Analyzing) return
 
         val apkUri = TempDataHolder.lastApkUri
         if (apkUri == null) {
@@ -55,31 +53,69 @@ class UploadViewModel : ViewModel() {
             return
         }
 
-        // 5. Cambio de estado a Análisis
         _analysisState.value = AnalysisState.Analyzing
 
         viewModelScope.launch {
-            val jobId = UUID.randomUUID().toString()
-            TempDataHolder.lastJobId = jobId
-
             try {
-                // LLAMADA CLAVE AL StaticAnalyzer
-                val report = StaticAnalyzer.performStaticAnalysis(context, apkUri, jobId)
+                val tempFile = File(context.cacheDir, "temp_upload.apk")
+                context.contentResolver.openInputStream(apkUri)?.use { input ->
+                    FileOutputStream(tempFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
 
-                // Guardar el reporte completo para que ReportViewModel lo pueda recuperar
-                ReportViewModel.TempDataHolder.lastReport = report
+                val requestBody = tempFile.asRequestBody("application/vnd.android.package-archive".toMediaTypeOrNull())
+                val filePart = MultipartBody.Part.createFormData("file", tempFile.name, requestBody)
 
-                _analysisState.value = AnalysisState.Success(jobId)
+                val response = RetrofitClient.apiService.uploadApk(filePart)
+                tempFile.delete()
+
+                if (response.isSuccessful && response.body() != null) {
+                    val uploadResponse = response.body()!!
+                    val jobId = uploadResponse.job_id
+                    TempDataHolder.lastJobId = jobId
+
+                    pollJobStatus(jobId)
+                } else {
+                    _analysisState.value = AnalysisState.Error("Error al subir archivo: ${response.code()}")
+                }
 
             } catch (e: Exception) {
-                _analysisState.value = AnalysisState.Error("Error en el análisis estático: ${e.message ?: "Desconocido"}")
-                // Volver a FileSelected para permitir reintentar
-                _analysisState.value = AnalysisState.FileSelected
+                _analysisState.value = AnalysisState.Error("Error: ${e.message ?: "Desconocido"}")
             }
         }
     }
 
-    // Función para limpiar el estado de navegación
+    private suspend fun pollJobStatus(jobId: String) {
+        var attempts = 0
+        val maxAttempts = 60
+
+        while (attempts < maxAttempts) {
+            try {
+                val statusResponse = RetrofitClient.apiService.getJobStatus(jobId)
+                if (statusResponse.isSuccessful && statusResponse.body() != null) {
+                    val status = statusResponse.body()!!.status
+                    when (status) {
+                        "completed" -> {
+                            _analysisState.value = AnalysisState.Success(jobId)
+                            return
+                        }
+                        "failed" -> {
+                            _analysisState.value = AnalysisState.Error("Análisis falló en el servidor")
+                            return
+                        }
+                    }
+                }
+                delay(2000)
+                attempts++
+            } catch (e: Exception) {
+                _analysisState.value = AnalysisState.Error("Error al consultar estado: ${e.message}")
+                return
+            }
+        }
+        _analysisState.value = AnalysisState.Error("Timeout: análisis tomó demasiado tiempo")
+    }
+
     fun resetState() {
         _analysisState.value = AnalysisState.Idle
         TempDataHolder.lastApkUri = null
