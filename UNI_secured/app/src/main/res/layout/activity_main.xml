@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/uni_purple_light">
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/uni_purple_dark"
+        android:elevation="4dp"
+        app:titleTextColor="@color/white"
+        app:title="UNI-SecureDroid" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:gravity="center">
+
+        <ImageView
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:src="@drawable/ic_secure_big"
+            app:tint="@color/uni_purple_primary"
+            android:layout_marginBottom="16dp"
+            android:contentDescription="Icono Seguridad" />
+
+        <TextView
+            android:id="@+id/txtTitulo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Auditoría de Malware"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="@color/black"
+            android:layout_marginBottom="24dp"/>
+
+        <Button
+            android:id="@+id/btnSelectFile"
+            android:layout_width="match_parent"
+            android:layout_height="55dp"
+            android:text="SELECCIONAR APK A ANALIZAR"
+            android:textSize="16sp"
+            android:backgroundTint="@color/uni_purple_primary"
+            android:textColor="@color/white"/>
+
+        <TextView
+            android:id="@+id/txtStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Sistema en espera..."
+            android:textAlignment="center"
+            android:layout_marginTop="20dp"
+            android:textSize="14sp"
+            android:textColor="@color/gray_text"/>
+
+        <TextView
+            android:id="@+id/txtResult"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textAlignment="center"
+            android:textSize="34sp"
+            android:textStyle="bold"
+            android:layout_marginTop="20dp"/>
+
+        <TextView
+            android:id="@+id/txtProbabilidad"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text=""
+            android:textAlignment="center"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textColor="@color/uni_purple_dark"
+            android:layout_marginTop="8dp"/>
+
+        <Button
+            android:id="@+id/btnDownloadPdf"
+            android:layout_width="match_parent"
+            android:layout_height="50dp"
+            android:text="DESCARGAR REPORTE (PDF)"
+            android:textSize="14sp"
+            android:layout_marginTop="32dp"
+            android:backgroundTint="@color/uni_blue_accent"
+            android:textColor="@color/white"
+            android:drawableLeft="@android:drawable/ic_menu_save"
+            android:drawableTint="@color/white"
+            android:visibility="gone" />
+
+    </LinearLayout>
+</LinearLayout>
