@@ -17,6 +17,12 @@
 ## Descripción
 
 UNI-Secure-Droid es un proyecto para la detección de aplicaciones Android maliciosas utilizando análisis estático y dinámico junto con modelos de aprendizaje automático.
+
+<p align="center">
+  <img src="certificado-ccc.jpg" alt="Aprobado por el Centro Cultural de Ciberseguridad UNI" width="900">
+</p>
+<br>
+
 ## Características
 
 - Análisis estático de APKs
